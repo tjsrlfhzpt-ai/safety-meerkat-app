@@ -1,0 +1,19 @@
+{
+  "name": "안전 미어캣 Pro",
+  "short_name": "안전미어캣",
+  "description": "위험성평가·CAPA·사고관리·TBM·법정선임 등 산업안전보건 통합관리 플랫폼",
+  "start_url": "./index.html",
+  "scope": "./",
+  "id": "/safety-meerkat/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090D16",
+  "theme_color": "#0f172a",
+  "lang": "ko",
+  "dir": "ltr",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
