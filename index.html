@@ -890,7 +890,7 @@
                         <h3 class="text-xs font-bold text-slate-700">🔗 서버 연결 (베타)</h3>
                         <p class="text-[11px] text-slate-500 leading-tight">연결하면 위험성평가·아차사고·TBM 등 신규 등록 항목이 서버에도 저장되어 같은 사업장 동료와 공유됩니다. 연결하지 않아도 기존처럼 이 기기에만 저장하며 정상 사용 가능합니다.</p>
                         <div id="server-connection-status" class="text-[11px] font-bold"></div>
-                        <input type="text" id="server-url-input" placeholder="예: https://your-app.up.railway.app" autocomplete="off" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                        <input type="text" id="server-url-input" placeholder="https://my-safety-app-3ow7.onrender.com" autocomplete="off" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
                         <div class="grid grid-cols-2 gap-2">
                             <button onclick="Actions.saveServerUrl()" class="py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition-colors">주소 저장</button>
                             <button id="server-login-open-btn" onclick="Modal.open('modal-server-login')" class="py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-colors">로그인</button>
@@ -1183,13 +1183,77 @@
                     <div id="login-error-msg" class="text-[11px] text-rose-600 font-semibold hidden"></div>
                     <button type="submit" id="server-login-submit-btn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-colors">로그인</button>
                 </form>
+                <p class="text-[11px] text-center text-slate-500 pt-1">
+                    계정이 없으신가요?
+                    <button onclick="Actions.openSignup()" class="font-bold text-indigo-600 underline">회원가입</button>
+                </p>
             </div>
         </div>
 
-        <!-- 2026-08-28(2-3절): 최초 로그인 동의 게이트. 계정이 이미 API로 미리 만들어지는
-             구조라(회원가입 화면 자체가 없음) "가입 시점"이 아니라 "최초 로그인 시점"에
-             동의를 받습니다. 의도적으로 ✕ 닫기 버튼이 없습니다 - 필수 동의이므로 건너뛸 수
-             없어야 합니다. -->
+        <!-- 2026-09-10: 근로자 회원가입 모달.
+             근로자용 앱이므로 "가입코드로 기존 회사에 합류"만 지원합니다. 새 회사 등록은
+             관제센터/웹에서 관리자가 하는 일이고, 현장 근로자가 휴대폰에서 회사를 새로
+             만들 일은 없기 때문입니다(잘못 만들어진 빈 회사가 쌓이는 것도 막습니다). -->
+        <div id="modal-server-signup" class="absolute inset-0 modal-backdrop flex items-end sm:items-center justify-center p-0 sm:p-4 hidden z-50">
+            <div class="bg-white w-full sm:max-w-xs rounded-t-3xl sm:rounded-2xl p-5 space-y-3 shadow-xl fade-in max-h-[90vh] overflow-y-auto no-scrollbar" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                    <h3 class="text-xs font-bold text-slate-800">📝 회원가입</h3>
+                    <button onclick="Modal.close('modal-server-signup')" class="text-slate-400 hover:text-slate-700 text-sm font-bold p-1">✕</button>
+                </div>
+
+                <div class="space-y-2.5 text-xs">
+                    <div class="space-y-1">
+                        <label class="font-bold text-slate-600">이름</label>
+                        <input type="text" id="su-name" autocomplete="name" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-slate-800">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="font-bold text-slate-600">아이디</label>
+                        <input type="text" id="su-id" autocomplete="username" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-slate-800">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="font-bold text-slate-600">비밀번호</label>
+                        <input type="password" id="su-pw" autocomplete="new-password" placeholder="8자 이상" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-slate-800">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="font-bold text-slate-600">비밀번호 확인</label>
+                        <input type="password" id="su-pw2" autocomplete="new-password" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-slate-800">
+                    </div>
+
+                    <!-- 초대코드는 기본 숨김. 회사 관리자에게 코드를 받은 사람만 펼친다. -->
+                    <button onclick="Actions.signupToggleInvite()" class="text-[11px] font-bold text-indigo-600 underline">회사 초대코드가 있으신가요?</button>
+
+                    <div id="su-invite" class="hidden space-y-2.5 pt-1">
+                        <div class="space-y-1">
+                            <label class="font-bold text-slate-600">초대코드</label>
+                            <input type="text" id="su-code" maxlength="6" autocomplete="off" placeholder="영문·숫자 6자리"
+                                   class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl uppercase tracking-widest focus:outline-none focus:border-slate-800">
+                        </div>
+                        <button id="su-code-btn" onclick="Actions.signupLookup()"
+                                class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-colors">회사 확인</button>
+                        <div id="su-found" class="hidden space-y-2.5">
+                            <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                <div class="text-[10px] text-emerald-700 font-semibold">가입할 회사</div>
+                                <div id="su-orgname" class="text-xs font-bold text-slate-800"></div>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="font-bold text-slate-600">소속 사업장</label>
+                                <select id="su-site" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-slate-800"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="su-btn" onclick="Actions.signupSubmit()"
+                            class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-colors">가입하기</button>
+                    <div id="su-error-msg" class="text-[11px] text-rose-600 font-semibold hidden"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2026-08-28(2-3절): 동의 게이트. 의도적으로 ✕ 닫기 버튼이 없습니다 - 필수
+             동의이므로 건너뛸 수 없어야 합니다.
+             2026-09-10 갱신: 회원가입 화면이 생겼지만, 동의는 여전히 "최초 로그인 시점"에
+             받습니다. 관리자가 API로 미리 만들어 준 계정(회원가입을 거치지 않은 계정)도
+             똑같이 동의를 받아야 하기 때문입니다. -->
         <div id="modal-consent-gate" class="absolute inset-0 modal-backdrop flex items-end sm:items-center justify-center p-0 sm:p-4 hidden z-[60]">
             <div class="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl p-5 space-y-3 shadow-xl fade-in max-h-[90vh] overflow-y-auto no-scrollbar" onclick="event.stopPropagation()">
                 <div class="border-b border-slate-100 pb-2">
@@ -2678,7 +2742,19 @@
             TOKEN_KEY: 'safety_meerkat_auth_token',
             USER_KEY: 'safety_meerkat_auth_user',
 
-            getBase() { return (localStorage.getItem(this.BASE_KEY) || '').replace(/\/$/, ''); },
+            // 2026-09-10: 실제 운영 서버 주소를 기본값으로 둔다. 현장 근로자가 앱을 설치하고
+            // 서버 주소를 직접 타이핑하게 만드는 건 현실적이지 않아서, 기본값을 넣어두고
+            // 설정 화면에서 바꿀 수 있게만 남긴다(저장한 값이 항상 이 기본값보다 우선).
+            //
+            // ※ 이 변경으로 isConfigured()는 항상 true가 된다. 실제 서버 통신 지점은 거의 전부
+            //   isConfigured() && isLoggedIn() 조건이라 로그인 전에는 아무것도 전송되지 않는다
+            //   - 즉 "서버 없이도 완전히 동작하는 오프라인 우선" 설계는 그대로 유지된다.
+            DEFAULT_BASE: 'https://my-safety-app-3ow7.onrender.com',
+
+            getBase() {
+                const saved = (localStorage.getItem(this.BASE_KEY) || '').trim();
+                return (saved || this.DEFAULT_BASE).replace(/\/$/, '');
+            },
             setBase(url) { localStorage.setItem(this.BASE_KEY, String(url || '').trim().replace(/\/$/, '')); },
             isConfigured() { return !!this.getBase(); },
 
@@ -9737,6 +9813,117 @@
                 this.renderServerConnectionStatus();
                 Toast.show('서버 주소가 저장되었습니다. 이제 로그인해주세요.', 'success');
             },
+            // ================================================================
+            // 회원가입 (2026-09-10)
+            // ----------------------------------------------------------------
+            // 기본 흐름은 이름/아이디/비밀번호 3가지만 받는다. 초대코드를 입력한
+            // 경우에만 그 회사로 합류하고, 없으면 본인 전용 작업공간을 자동 생성한다.
+            // 가입 시점엔 토큰이 없으므로 Api.request(항상 Authorization 헤더를 붙임)
+            // 대신 인증 없는 전용 호출을 쓴다.
+            // ================================================================
+            async signupPublicCall(method, path, body) {
+                const base = Api.getBase();
+                if (!base) throw new Error('서버 주소를 먼저 저장해주세요.');
+                let res;
+                try {
+                    res = await fetch(base + path, {
+                        method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: body !== undefined ? JSON.stringify(body) : undefined,
+                    });
+                } catch (err) { throw new Error('서버에 연결할 수 없습니다.'); }
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || `요청 실패 (${res.status})`);
+                return data;
+            },
+
+            openSignup() {
+                Modal.close('modal-server-login');
+                ['su-name', 'su-id', 'su-pw', 'su-pw2', 'su-code'].forEach((id) => {
+                    const el = document.getElementById(id); if (el) el.value = '';
+                });
+                document.getElementById('su-invite').classList.add('hidden');
+                document.getElementById('su-found').classList.add('hidden');
+                document.getElementById('su-error-msg').classList.add('hidden');
+                this._signupOrgId = null;
+                Modal.open('modal-server-signup');
+            },
+
+            signupToggleInvite() {
+                const el = document.getElementById('su-invite');
+                const opening = el.classList.contains('hidden');
+                el.classList.toggle('hidden');
+                // 접으면 확인해둔 회사도 취소한다 - 화면엔 안 보이는데 그 회사로 가입되면 안 된다.
+                if (!opening) {
+                    this._signupOrgId = null;
+                    document.getElementById('su-found').classList.add('hidden');
+                }
+            },
+
+            async signupLookup() {
+                const code = document.getElementById('su-code').value.trim().toUpperCase();
+                const errEl = document.getElementById('su-error-msg');
+                const btn = document.getElementById('su-code-btn');
+                errEl.classList.add('hidden');
+                if (!code) { errEl.textContent = '초대코드를 입력해주세요.'; errEl.classList.remove('hidden'); return; }
+                btn.disabled = true; btn.textContent = '확인 중…';
+                try {
+                    const r = await this.signupPublicCall('GET', '/organizations/lookup?code=' + encodeURIComponent(code));
+                    if (!r.sites || r.sites.length === 0) {
+                        throw new Error('이 회사에 등록된 사업장이 없습니다. 관리자에게 문의해주세요.');
+                    }
+                    this._signupOrgId = r.orgId;
+                    document.getElementById('su-orgname').textContent = r.orgName;
+                    document.getElementById('su-site').innerHTML = r.sites
+                        .map((s) => `<option value="${s.id}">${s.name}</option>`).join('');
+                    document.getElementById('su-found').classList.remove('hidden');
+                } catch (err) {
+                    this._signupOrgId = null;
+                    errEl.textContent = err.message; errEl.classList.remove('hidden');
+                } finally {
+                    btn.disabled = false; btn.textContent = '회사 확인';
+                }
+            },
+
+            async signupSubmit() {
+                const errEl = document.getElementById('su-error-msg');
+                const btn = document.getElementById('su-btn');
+                const name = document.getElementById('su-name').value.trim();
+                const loginId = document.getElementById('su-id').value.trim();
+                const pw = document.getElementById('su-pw').value;
+                const pw2 = document.getElementById('su-pw2').value;
+                errEl.classList.add('hidden');
+
+                if (!name || !loginId || !pw) { errEl.textContent = '이름, 아이디, 비밀번호를 모두 입력해주세요.'; errEl.classList.remove('hidden'); return; }
+                if (pw.length < 8) { errEl.textContent = '비밀번호는 8자 이상이어야 합니다.'; errEl.classList.remove('hidden'); return; }
+                if (pw !== pw2) { errEl.textContent = '비밀번호가 서로 일치하지 않습니다.'; errEl.classList.remove('hidden'); return; }
+
+                btn.disabled = true; btn.textContent = '가입 중…';
+                try {
+                    let orgId = this._signupOrgId;
+                    let siteId = orgId ? document.getElementById('su-site').value : null;
+
+                    // 초대코드 없이 가입하면 본인 전용 작업공간을 자동으로 만든다.
+                    if (!orgId) {
+                        const created = await this.signupPublicCall('POST', '/organizations', { name: `${name}의 작업공간`, siteName: '본사' });
+                        orgId = created.orgId; siteId = created.siteId;
+                    }
+
+                    await this.signupPublicCall('POST', '/auth/register', { orgId, siteId, loginId, password: pw, name });
+
+                    // 방금 만든 계정으로 바로 로그인시켜 준다.
+                    const user = await Api.login(loginId, pw);
+                    Modal.close('modal-server-signup');
+                    this.renderServerConnectionStatus();
+                    if (user.needsConsent) Modal.open('modal-consent-gate');
+                    else Toast.show(`${user.name}님, 가입이 완료되었습니다.`, 'success');
+                } catch (err) {
+                    errEl.textContent = err.message; errEl.classList.remove('hidden');
+                } finally {
+                    btn.disabled = false; btn.textContent = '가입하기';
+                }
+            },
+
             async submitServerLogin(e) {
                 e.preventDefault();
                 const loginId = document.getElementById('login-id-input').value.trim();
@@ -9748,6 +9935,8 @@
                 btn.textContent = '로그인 중…';
                 try {
                     const user = await Api.login(loginId, password);
+                    // 2026-09-10: 다음 로그인 때 아이디를 미리 채워준다(비밀번호는 저장 안 함).
+                    localStorage.setItem('safety_meerkat_last_login_id', loginId);
                     Modal.close('modal-server-login');
                     document.getElementById('form-server-login').reset();
                     this.renderServerConnectionStatus();
@@ -9820,6 +10009,11 @@
                 if (!statusEl) return;
 
                 if (urlInput && !urlInput.value) urlInput.value = Api.getBase();
+
+                // 로그인 모달을 열 때 지난번 아이디를 미리 채워둔다.
+                const idInput = document.getElementById('login-id-input');
+                const lastId = localStorage.getItem('safety_meerkat_last_login_id');
+                if (idInput && !idInput.value && lastId) idInput.value = lastId;
 
                 if (Api.isLoggedIn()) {
                     const user = Api.getUser();
