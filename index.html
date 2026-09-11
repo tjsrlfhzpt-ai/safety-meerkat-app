@@ -301,6 +301,7 @@
                             <button onclick="Actions.setReportFilter('완료')" id="filter-report-완료" class="px-2 py-0.5 rounded text-slate-600 hover:bg-slate-200">완료</button>
                         </div>
                     </div>
+                    <button onclick="Actions.exportReportsExcel()" title="검색·필터된 목록을 공식 서식 엑셀로 저장 (현장사진 포함)" class="w-full text-xs px-2.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors">📊 엑셀출력</button>
                     <input type="text" id="report-search" oninput="Actions.renderReports()" placeholder="🔍 제목 / 내용 검색..." class="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-slate-800 transition-colors shadow-xs">
                     <div id="report-list" class="space-y-2"></div>
                 </div>
@@ -795,6 +796,7 @@
                                 <div class="space-y-0.5"><label class="text-[10px] font-bold text-slate-500">차주 주요 안전보건 추진계획</label><textarea id="wlog-nextplan" rows="2" placeholder="예: 폭염 대비 온열질환 예방점검 (08.10)" class="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg" onchange="SafetyModule.saveWeeklyLogNotes()"></textarea></div>
                                 <div class="space-y-0.5"><label class="text-[10px] font-bold text-slate-500">특이사항 및 건의사항</label><textarea id="wlog-notes" rows="2" placeholder="예: 하절기 용품 배포 완료, 예산 신청 건 등" class="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg" onchange="SafetyModule.saveWeeklyLogNotes()"></textarea></div>
                             </div>
+                            <button onclick="Actions.exportTasksExcel()" title="전체 업무 목록을 공식 서식 엑셀로 저장" class="w-full py-2.5 bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-colors">📊 전체 업무일지 엑셀출력</button>
                             <div class="grid grid-cols-2 gap-2 pt-1">
                                 <button onclick="SafetyModule.printWeeklyLog()" class="py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-xs transition-colors">🖨️ 주간일지 출력</button>
                                 <button onclick="SafetyModule.exportWeeklyExcel()" class="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors">📊 엑셀로 내보내기(수정가능)</button>
@@ -840,6 +842,7 @@
                 </div>
 
                 <div class="space-y-2">
+                    <button onclick="Actions.exportChecklistExcel()" title="검색·필터된 점검표를 공식 서식 엑셀로 저장" class="w-full text-xs px-2.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors">📊 엑셀출력</button>
                     <input type="text" id="chk-search-input" oninput="Actions.searchChecklist(this.value)" placeholder="🔍 법규 항목 / 태그 / 처벌규정 검색..." class="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-slate-800 transition-colors shadow-xs">
 
                     <div class="flex justify-between items-center px-1 pt-1">
@@ -3881,6 +3884,95 @@ API 키는 이 브라우저에만 저장되고 백업 파일에도 포함되지 
         const PTW_NEXT_STATUS = { '등록': '위험확인중', '위험확인중': '승인대기', '승인대기': '승인됨', '승인됨': '작업중', '작업중': '종료' };
 
         // 모듈별 Excel(.xlsx) 내보내기용 컬럼 정의: [한글 헤더, 열 너비(문자수), 값 추출 함수]
+
+        // ============================================================
+        // 2026-09-11: 모듈별 엑셀 출력 서식 정의
+        // ------------------------------------------------------------
+        // 예전에는 위험성평가·법정회의만 공식 서식(색상·테두리·사진 삽입)으로 나오고
+        // 나머지 12개 모듈은 SheetJS로 만든 밋밋한 표였습니다. 실제로 결재를 올리거나
+        // 감독관에게 제출하는 문서인데 모듈마다 품질이 다른 게 이상해서, 전 모듈을
+        // 같은 수준으로 통일했습니다.
+        //
+        // 각 항목의 의미:
+        //   title      문서 상단 제목 (○○ 실시기록부 같은 공문서식 이름)
+        //   photos     사진을 넣을 칸. [{header, width, field}] 형태로 표 맨 뒤에 붙습니다.
+        //   fills      값에 따라 칸 배경색을 바꿀 컬럼. { 컬럼헤더명: {값: 색상} }
+        //   fonts      값에 따라 글자색을 바꿀 컬럼 (fills와 같은 구조)
+        //   wide       줄바꿈이 많이 일어나는 긴 텍스트 컬럼 (행 높이 계산에 사용)
+        // 색상은 ARGB 8자리입니다.
+        // ============================================================
+        const RISK_FILL = { '상': 'FFFEE2E2', '중': 'FFFEF3C7', '하': 'FFDCFCE7' };
+        const RISK_FONT = { '상': 'FFB91C1C', '중': 'FFB45309', '하': 'FF15803D' };
+        const DONE_FILL = { '완료': 'FFD1FAE5', '조치완료': 'FFD1FAE5', '승인': 'FFD1FAE5', '정상': 'FFD1FAE5',
+                            '진행중': 'FFFEF3C7', '조치중': 'FFFEF3C7', '검토중': 'FFFEF3C7', '접수': 'FFFEF3C7',
+                            '등록': 'FFF1F5F9', '예정': 'FFF1F5F9', '대기': 'FFF1F5F9',
+                            '지연': 'FFFEE2E2', '기한초과': 'FFFEE2E2', '만료': 'FFFEE2E2', '반려': 'FFFEE2E2' };
+        const DONE_FONT = { '완료': 'FF047857', '조치완료': 'FF047857', '승인': 'FF047857', '정상': 'FF047857',
+                            '진행중': 'FFB45309', '조치중': 'FFB45309', '검토중': 'FFB45309', '접수': 'FFB45309',
+                            '등록': 'FF64748B', '예정': 'FF64748B', '대기': 'FF64748B',
+                            '지연': 'FFB91C1C', '기한초과': 'FFB91C1C', '만료': 'FFB91C1C', '반려': 'FFB91C1C' };
+
+        const EXCEL_SHEET_SPEC = {
+            risk:       { title: '위험성평가 실시기록부',
+                          photos: [{ header: '개선 전', width: 13, field: 'photoBefore' }, { header: '개선 후', width: 13, field: 'photoAfter' }],
+                          fills: { '위험도': RISK_FILL, '상태': DONE_FILL }, fonts: { '위험도': RISK_FONT, '상태': DONE_FONT },
+                          wide: ['위험요인', '개선대책'] },
+            accident:   { title: '산업재해 발생 및 조치 기록부',
+                          photos: [{ header: '현장 사진', width: 13, field: 'photo' }],
+                          fills: { '진행상태': DONE_FILL, '보고상태': DONE_FILL }, fonts: { '진행상태': DONE_FONT, '보고상태': DONE_FONT },
+                          wide: ['사고경위', '근본원인', '재발방지대책'] },
+            msds:       { title: '물질안전보건자료(MSDS) 관리대장', wide: ['보관장소', '비고'] },
+            health:     { title: '근로자 건강진단 실시대장', wide: ['검진결과 및 판정'] },
+            ptw:        { title: '작업허가서(PTW) 발급대장',
+                          photos: [{ header: '현장 사진', width: 13, field: 'photo' }],
+                          fills: { '진행상태': DONE_FILL }, fonts: { '진행상태': DONE_FONT },
+                          wide: ['위험요인', '안전조치'] },
+            edu:        { title: '안전보건교육 실시대장', wide: ['미참석자', '비고'] },
+            tbm:        { title: 'TBM(작업 전 안전점검회의) 실시일지',
+                          photos: [{ header: '현장 사진', width: 13, field: 'photo' }],
+                          fills: { '위험도': RISK_FILL }, fonts: { '위험도': RISK_FONT },
+                          wide: ['TBM 주제/작업내용', '유해위험요인', '안전대책', '전달사항', '참석자'] },
+            appoint:    { title: '안전보건관계자 선임 관리대장',
+                          fills: { '상태': DONE_FILL }, fonts: { '상태': DONE_FONT }, wide: ['비고'] },
+            ppe:        { title: '보호구 지급·관리대장',
+                          fills: { '상태': DONE_FILL }, fonts: { '상태': DONE_FONT }, wide: ['비고'] },
+            contractor: { title: '협력업체 안전보건 관리대장',
+                          fills: { '상태': DONE_FILL, '보험가입여부': DONE_FILL }, fonts: { '상태': DONE_FONT },
+                          wide: ['공종/작업내용', '비고'] },
+            nearmiss:   { title: '아차사고 발굴·조치 기록부',
+                          photos: [{ header: '개선 전', width: 13, field: 'photoBefore' }, { header: '개선 후', width: 13, field: 'photoAfter' }],
+                          fills: { '상태': DONE_FILL }, fonts: { '상태': DONE_FONT },
+                          wide: ['발생내용', '원인', '개선조치'] },
+            voice:      { title: '안전의 소리함 접수·처리대장',
+                          photos: [{ header: '첨부 사진', width: 13, field: 'photo' }],
+                          fills: { '처리상태': DONE_FILL }, fonts: { '처리상태': DONE_FONT },
+                          wide: ['신고(의견)내용', '조치내용/처리결과'] },
+            legalmeet:  { title: '법정회의·점검 실시기록부',
+                          photos: [{ header: '개선 전', width: 13, field: 'photoBefore' }, { header: '개선 후', width: 13, field: 'photoAfter' }],
+                          fills: { '상태': DONE_FILL }, fonts: { '상태': DONE_FONT },
+                          wide: ['주요내용', '지적 및 발굴 위험요인', '개선조치 내용', '참석자/참석인원'] },
+            reports:    { title: '현장 위험요인 신고·조치 기록부',
+                          photos: [{ header: '현장 사진', width: 13, field: 'photo' }],
+                          fills: { '위험도': RISK_FILL, '처리상태': DONE_FILL },
+                          fonts: { '위험도': RISK_FONT, '처리상태': DONE_FONT },
+                          wide: ['상세 내용', '조치 이력'] },
+            checklist:  { title: '산업안전보건 법정의무 이행점검표',
+                          fills: { '이행 여부': { '이행': 'FFD1FAE5', '미이행': 'FFFEE2E2' } },
+                          fonts: { '이행 여부': { '이행': 'FF047857', '미이행': 'FFB91C1C' } },
+                          wide: ['점검 항목', '세부 확인사항', '벌칙', '비고'] },
+            tasks:      { title: '안전보건 업무 수행일지',
+                          fills: { '완료 여부': { '완료': 'FFD1FAE5', '미완료': 'FFFEF3C7' },
+                                   '우선순위': { '긴급': 'FFFEE2E2', '보통': 'FFFEF3C7', '낮음': 'FFF1F5F9' } },
+                          fonts: { '완료 여부': { '완료': 'FF047857', '미완료': 'FFB45309' } },
+                          wide: ['업무명', '상세 내용'] },
+            auditLog:   { title: '데이터 변경 이력(감사로그)',
+                          fills: { '작업': { '등록': 'FFDCFCE7', '수정': 'FFFEF3C7', '삭제': 'FFFEE2E2', '상태변경': 'FFE0F2FE' } },
+                          wide: ['변경 내용'] },
+            capa:       { title: '개선조치(CAPA) 관리대장',
+                          fills: { '상태': DONE_FILL, '우선순위': RISK_FILL }, fonts: { '상태': DONE_FONT, '우선순위': RISK_FONT },
+                          wide: ['문제점/발견사항', '개선대책'] }
+        };
+
         const EXCEL_COLUMNS = {
             risk: [
                 ['평가일자', 12, i => i.date || ''],
@@ -3981,6 +4073,37 @@ API 키는 이 브라우저에만 저장되고 백업 파일에도 포함되지 
                 ['개선조치 내용', 30, i => i.measure || ''], ['상태', 10, i => i.status || ''],
                 ['차기 예정일', 12, i => i.nextDate || ''], ['담당자', 10, i => i.manager || ''],
                 ['비고', 20, i => i.memo || '']
+            ],
+            // 2026-09-11: 안전모듈이 아닌 탭(위험신고·법규체크·할일·감사로그)도 같은 서식으로
+            // 내보낼 수 있도록 컬럼 정의를 추가했습니다. State.safetyData가 아니라 State 최상위에
+            // 있는 데이터라, exportExcel()이 아닌 exportGeneralExcel()이 사용합니다.
+            reports: [
+                ['신고일자', 12, i => i.date || ''], ['신고시각', 8, i => i.time || ''],
+                ['제목', 26, i => i.title || ''], ['위험도', 8, i => i.severity || ''],
+                ['상세 내용', 36, i => i.desc || ''], ['위치(GPS)', 18, i => i.gps || ''],
+                ['처리상태', 10, i => i.status || ''],
+                ['조치 이력', 36, i => (i.logs || []).map(l => `${l.time || ''} ${l.text || ''}`).join('\n')]
+            ],
+            checklist: [
+                ['연번', 6, i => i.id || ''], ['근거 법령', 22, i => i.tag || ''],
+                ['점검 항목', 34, i => i.title || ''], ['세부 확인사항', 44, i => i.desc || ''],
+                ['이행 여부', 10, i => i.checked ? '이행' : '미이행'],
+                ['벌칙', 26, i => (i.penalty || '').replace(/^⚖️\s*/, '')],
+                ['비고', 24, i => i.note || '']
+            ],
+            tasks: [
+                ['일자', 12, i => i.date || ''], ['시각', 8, i => i.time || ''],
+                ['업무명', 30, i => i.title || ''], ['상세 내용', 40, i => i.desc || ''],
+                ['구분', 12, i => i.category || ''], ['우선순위', 10, i => i.priority || ''],
+                ['완료 여부', 10, i => i.isCompleted ? '완료' : '미완료']
+            ],
+            auditLog: [
+                ['일시', 18, i => (i.at || '').replace('T', ' ').slice(0, 19)],
+                ['작업', 10, i => i.action || ''],
+                ['대상 모듈', 16, i => SAFETY_TYPE_LABELS[i.entityType] || i.entityType || ''],
+                ['대상 ID', 20, i => String(i.entityId || '')],
+                ['변경 내용', 46, i => i.detail || ''],
+                ['작성자', 12, i => i.actor || '']
             ],
             capa: [
                 ['출처', 14, i => SAFETY_TYPE_LABELS[i.sourceType] || i.sourceType || '수동등록'],
@@ -7242,20 +7365,146 @@ API 키는 이 브라우저에만 저장되고 백업 파일에도 포함되지 
                     `;
                 }
             },
-            exportExcel(type) {
+            // ============================================================
+            // 2026-09-11: 전 모듈 공통 "공식 서식" 엑셀 출력
+            // ------------------------------------------------------------
+            // EXCEL_COLUMNS(어떤 칸을 뽑을지) + EXCEL_SHEET_SPEC(어떻게 꾸밀지)을 조합해
+            // 위험성평가와 같은 수준의 문서를 14개 모듈 전부에 대해 만들어냅니다.
+            //
+            // 공통으로 들어가는 요소:
+            //   - 상단 제목줄(진한 배경 + 흰 글씨), 출력일자·총건수 정보줄
+            //   - 연번 컬럼, 회색 머리글, 전 칸 테두리
+            //   - 위험도·상태에 따른 배경색/글자색
+            //   - 첨부 사진 셀 삽입(사진이 있는 모듈만)
+            //   - 내용 길이에 맞춘 행 높이 자동 계산
+            //   - A4 가로, 여백 맞춤, 머리글 반복 인쇄(여러 장이어도 표 제목이 매 장 나옴)
+            //
+            // 사진 삽입이 비동기라 함수 전체가 async입니다. 버튼에서 그냥 호출해도
+            // 되도록 내부에서 오류를 처리하고 토스트로 알립니다.
+            // ============================================================
+            async exportExcel(type) {
                 const rows = State.safetyData[type] || [];
                 const cols = EXCEL_COLUMNS[type];
-                if (!cols) { Utils.exportCSV(`safety_export_${type}`, rows); return; }
+                const label = SAFETY_TYPE_LABELS[type] || type;
+
                 if (!rows.length) { Toast.show('내보낼 데이터가 없습니다.', 'error'); return; }
-                const header = cols.map(c => c[0]);
-                const widths = cols.map(c => c[1]);
-                const dataRows = rows.map(item => cols.map(c => {
-                    const v = c[2](item);
-                    return v === null || v === undefined ? '' : v;
-                }));
-                Utils.exportExcelFile(`안전관리_${SAFETY_TYPE_LABELS[type] || type}_${todayStr}`, [
-                    { name: SAFETY_TYPE_LABELS[type] || type, header, widths, rows: dataRows }
-                ]);
+                // 서식 정의가 없는(새로 추가된) 모듈은 예전처럼 단순 표로라도 반드시 나오게 합니다.
+                if (!cols) { Utils.exportCSV(`safety_export_${type}`, rows); return; }
+                if (typeof ExcelJS === 'undefined') {
+                    Toast.show('엑셀 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.', 'error');
+                    return;
+                }
+
+                Toast.show(`${label} 엑셀을 만드는 중입니다…`, 'info');
+                try {
+                    const wb = await this._buildGenericWorkbook(type, rows, cols);
+                    const buffer = await wb.xlsx.writeBuffer();
+                    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${label}_${todayStr}.xlsx`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    Toast.show(`${label} ${rows.length}건을 엑셀로 저장했습니다. (엑셀에서 수정 후 출력하실 수 있습니다)`, 'success');
+                } catch (err) {
+                    console.error('[엑셀 출력 실패]', err);
+                    Toast.show('엑셀을 만들지 못했습니다: ' + (err && err.message ? err.message : '알 수 없는 오류'), 'error');
+                }
+            },
+
+            async _buildGenericWorkbook(type, items, cols) {
+                const spec = EXCEL_SHEET_SPEC[type] || {};
+                const label = SAFETY_TYPE_LABELS[type] || type;
+                const photos = spec.photos || [];
+
+                const wb = new ExcelJS.Workbook();
+                wb.creator = '안전 미어캣';
+                wb.created = new Date();
+
+                // 시트 이름에는 : \ / ? * [ ] 를 쓸 수 없고 31자를 넘을 수 없습니다.
+                const sheetName = label.replace(/[:\\\/?*\[\]]/g, ' ').slice(0, 31);
+                const ws = wb.addWorksheet(sheetName, {
+                    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9,
+                                 margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 } },
+                    views: [{ showGridLines: false }]
+                });
+
+                // 1열은 연번, 그다음 데이터 컬럼들, 마지막에 사진 컬럼
+                const widths = [5].concat(cols.map(c => c[1]), photos.map(p => p.width));
+                widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+                const NCOL = widths.length;
+
+                // --- 제목줄 ---
+                ws.getRow(1).height = 28;
+                this._xlsxBox(ws, 1, 1, 1, NCOL, spec.title || `${label} 관리대장`,
+                    { bold: true, size: 16, fill: 'FF1E293B', fontColor: 'FFFFFFFF' });
+
+                // --- 정보줄 (출력일자 / 총 건수) ---
+                ws.getRow(2).height = 20;
+                const mid = Math.max(3, Math.floor(NCOL / 2));
+                this._xlsxBox(ws, 2, 1, 2, 2, '출력일자', { bold: true, fill: 'FFE2E8F0' });
+                this._xlsxBox(ws, 2, 3, 2, mid, todayStr, { size: 10 });
+                this._xlsxBox(ws, 2, mid + 1, 2, mid + 2, '총 건수', { bold: true, fill: 'FFE2E8F0' });
+                this._xlsxBox(ws, 2, mid + 3, 2, NCOL, `${items.length}건`, { align: 'left', size: 10 });
+
+                // --- 머리글 ---
+                ws.getRow(3).height = 24;
+                const headers = ['연번'].concat(cols.map(c => c[0]), photos.map(p => p.header));
+                headers.forEach((h, i) => this._xlsxCell(ws, 3, i + 1, h, { bold: true, fill: 'FFE2E8F0' }));
+
+                // --- 본문 ---
+                let r = 4;
+                for (let n = 0; n < items.length; n++) {
+                    const item = items[n];
+                    const values = cols.map(c => {
+                        const v = c[2](item);
+                        return (v === null || v === undefined) ? '' : v;
+                    });
+
+                    // 긴 텍스트 칸을 기준으로 행 높이를 정합니다. 안 그러면 내용이 잘립니다.
+                    let rowHeight = 30;
+                    (spec.wide || []).forEach(h => {
+                        const idx = cols.findIndex(c => c[0] === h);
+                        if (idx >= 0) rowHeight = Math.max(rowHeight, this._xlsxEstimateHeight(values[idx], cols[idx][1], 30));
+                    });
+
+                    this._xlsxCell(ws, r, 1, n + 1, { bold: true, fill: 'FFF8FAFC' });
+                    values.forEach((v, i) => {
+                        const header = cols[i][0];
+                        const text = String(v);
+                        const opts = {
+                            // 긴 글은 왼쪽 정렬이 읽기 편하고, 날짜·상태 같은 짧은 값은 가운데가 깔끔합니다.
+                            align: (spec.wide || []).includes(header) || text.length > 14 ? 'left' : 'center',
+                            size: cols[i][1] <= 10 ? 8.5 : 9.5
+                        };
+                        const fillMap = (spec.fills || {})[header];
+                        const fontMap = (spec.fonts || {})[header];
+                        if (fillMap && fillMap[text]) { opts.fill = fillMap[text]; opts.bold = true; }
+                        if (fontMap && fontMap[text]) opts.fontColor = fontMap[text];
+                        this._xlsxCell(ws, r, i + 2, v, opts);
+                    });
+
+                    // 사진 칸은 값 없이 테두리만 먼저 그려두고, 그 위에 이미지를 얹습니다.
+                    for (let p = 0; p < photos.length; p++) {
+                        const col = 1 + cols.length + p + 1;
+                        this._xlsxCell(ws, r, col, '', {});
+                        const dataURL = item[photos[p].field];
+                        if (dataURL) {
+                            const h = await this._embedPhotoCell(wb, ws, dataURL, r, col, 78, 65);
+                            if (h) rowHeight = Math.max(rowHeight, h * 0.75 + 16);
+                        }
+                    }
+
+                    ws.getRow(r).height = rowHeight;
+                    r++;
+                }
+
+                // 표가 여러 장으로 넘어가도 머리글이 매 장 반복되게 합니다.
+                ws.pageSetup.printTitlesRow = '3:3';
+                return wb;
             },
 
             // ===== 안전의 소리함: 구글폼 CSV 가져오기 =====
@@ -8633,13 +8882,26 @@ API 키는 이 브라우저에만 저장되고 백업 파일에도 포함되지 
                 });
                 this.renderReports();
             },
+            // 2026-09-11: 화면 목록과 엑셀 출력이 같은 조건을 쓰도록 필터를 함수로 뺐습니다.
+            // 예전처럼 각자 필터링하면 "화면엔 3건인데 엑셀엔 10건" 같은 일이 생깁니다.
+            _filteredReports() {
+                const search = (document.getElementById('report-search')?.value || '').toLowerCase();
+                return (State.reports || [])
+                    .filter(r => State.reportFilter === 'all' || r.status === State.reportFilter)
+                    .filter(r => !search || `${r.title || ''} ${r.desc || ''}`.toLowerCase().includes(search));
+            },
+            _filteredChecklist() {
+                const search = (State.checklistSearch || '').toLowerCase();
+                return (State.checklist || []).filter(item => {
+                    const matchSearch = (item.title + ' ' + item.tag + ' ' + (item.desc || '')).toLowerCase().includes(search);
+                    const matchUnfulfilled = !State.checklistUnfulfilledOnly || !item.checked;
+                    return matchSearch && matchUnfulfilled;
+                });
+            },
             renderReports() {
                 const listEl = document.getElementById('report-list');
                 if (!listEl) return;
-                const search = (document.getElementById('report-search')?.value || '').toLowerCase();
-                const filtered = (State.reports || [])
-                    .filter(r => State.reportFilter === 'all' || r.status === State.reportFilter)
-                    .filter(r => !search || `${r.title || ''} ${r.desc || ''}`.toLowerCase().includes(search));
+                const filtered = this._filteredReports();
                 if (filtered.length === 0) {
                     listEl.innerHTML = `<div class="bg-white p-6 rounded-2xl text-center text-xs text-slate-400 border border-slate-200">${(State.reports || []).length === 0 ? '등록된 위험신고 이력이 없습니다.' : '검색 결과가 없습니다.'}</div>`;
                     return;
@@ -8707,11 +8969,7 @@ API 키는 이 브라우저에만 저장되고 백업 파일에도 포함되지 
                 const badge = document.getElementById('checklist-score-badge');
                 if (!container) return;
 
-                const items = (State.checklist || []).filter(item => {
-                    const matchSearch = (item.title + ' ' + item.tag + ' ' + (item.desc || '')).toLowerCase().includes(State.checklistSearch.toLowerCase());
-                    const matchUnfulfilled = !State.checklistUnfulfilledOnly || !item.checked;
-                    return matchSearch && matchUnfulfilled;
-                });
+                const items = this._filteredChecklist();
 
                 const checkedCount = (State.checklist || []).filter(i => i.checked).length;
                 if (badge) badge.textContent = `${checkedCount}/85 완료`;
@@ -9105,21 +9363,58 @@ API 키는 이 브라우저에만 저장되고 백업 파일에도 포함되지 
                     </div>
                 `).join('');
             },
+            // ============================================================
+            // 2026-09-11: 안전모듈이 아닌 탭들의 엑셀 출력
+            // ------------------------------------------------------------
+            // 위험신고·법규체크·업무일지·감사로그는 State.safetyData가 아니라 State 최상위에
+            // 있어서 SafetyModule.exportExcel()을 그대로 쓸 수 없습니다. 서식을 만드는 부분은
+            // 똑같으므로 _buildGenericWorkbook()만 빌려 쓰고, 데이터를 넘겨주는 부분만 다릅니다.
+            // (같은 표 그리는 코드를 두 벌 유지하면 한쪽만 고쳐져서 서식이 어긋나게 됩니다)
+            //
+            // key는 EXCEL_COLUMNS / EXCEL_SHEET_SPEC에 정의된 이름이어야 합니다.
+            // ============================================================
+            async exportGeneralExcel(key, items, label) {
+                const cols = EXCEL_COLUMNS[key];
+                if (!items || !items.length) { Toast.show('내보낼 데이터가 없습니다.', 'warning'); return; }
+                if (!cols) { Toast.show('이 항목은 아직 엑셀 서식이 없습니다.', 'error'); return; }
+                if (typeof ExcelJS === 'undefined') {
+                    Toast.show('엑셀 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.', 'error');
+                    return;
+                }
+                Toast.show(`${label} 엑셀을 만드는 중입니다…`, 'info');
+                try {
+                    const wb = await SafetyModule._buildGenericWorkbook(key, items, cols);
+                    const buffer = await wb.xlsx.writeBuffer();
+                    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${label}_${todayStr}.xlsx`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    Toast.show(`${label} ${items.length}건을 엑셀로 저장했습니다.`, 'success');
+                } catch (err) {
+                    console.error('[엑셀 출력 실패]', err);
+                    Toast.show('엑셀을 만들지 못했습니다: ' + (err && err.message ? err.message : '알 수 없는 오류'), 'error');
+                }
+            },
             exportAuditLogExcel() {
-                const all = State.auditLog || [];
-                if (all.length === 0) { Toast.show('내보낼 감사 로그가 없습니다.', 'warning'); return; }
-                const cols = [
-                    ['일시', 20, i => (i.at || '').replace('T', ' ').slice(0, 19)],
-                    ['작업', 10, i => i.action || ''],
-                    ['대상 모듈', 14, i => SAFETY_TYPE_LABELS[i.entityType] || i.entityType || ''],
-                    ['대상 ID', 20, i => String(i.entityId || '')],
-                    ['내용', 50, i => i.detail || ''],
-                    ['작성자', 10, i => i.actor || '']
-                ];
-                const header = cols.map(c => c[0]);
-                const widths = cols.map(c => c[1]);
-                const dataRows = all.map(item => cols.map(c => c[2](item) ?? ''));
-                Utils.exportExcelFile(`안전관리_감사로그_${todayStr}`, [{ name: '감사로그', header, widths, rows: dataRows }]);
+                this.exportGeneralExcel('auditLog', State.auditLog || [], '데이터 변경이력');
+            },
+            // 화면에서 검색·필터한 결과 그대로 내보냅니다 - 목록에 보이는 것과 엑셀이 다르면
+            // 사용자가 혼란스럽기 때문입니다.
+            exportReportsExcel() {
+                const items = this._filteredReports ? this._filteredReports() : (State.reports || []);
+                this.exportGeneralExcel('reports', items, '현장 위험요인 신고');
+            },
+            exportChecklistExcel() {
+                const items = this._filteredChecklist ? this._filteredChecklist() : (State.checklist || []);
+                this.exportGeneralExcel('checklist', items, '법정의무 이행점검표');
+            },
+            exportTasksExcel() {
+                this.exportGeneralExcel('tasks', State.tasks || [], '안전보건 업무일지');
             },
             openSearchModal() {
                 this.switchTab('safety');
