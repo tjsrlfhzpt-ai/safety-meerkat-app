@@ -1,14 +1,14 @@
 {
-  "name": "안전 미어캣 Pro",
-  "short_name": "안전미어캣",
+  "name": "SAFE DUCKY — 산업안전 관리",
+  "short_name": "SAFE DUCKY",
   "description": "위험성평가·TBM·아차사고·법정선임 등 산업안전 기록을 휴대폰에 저장하고 인쇄·엑셀로 출력하는 앱. 서버 없이 이 기기에서만 동작합니다.",
   "start_url": "./index.html",
   "scope": "./",
   "id": "/safety-meerkat/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#090D16",
-  "theme_color": "#0f172a",
+  "background_color": "#FFFFFF",
+  "theme_color": "#1E293B",
   "lang": "ko",
   "dir": "ltr",
   "icons": [
